@@ -1,12 +1,8 @@
 ﻿using System;
-using System.Net;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Collections.Generic;
 using System.Text.RegularExpressions;
-using System.IO;
 using System.Configuration;
 
 
@@ -34,13 +30,13 @@ namespace WeatherApp
     {
         static readonly HttpClient http = new HttpClient();
 
-        static void ShowWeather(WeatherCurrentMessage weather)
+        // UTC time to human readable -> https://www.epochconverter.com/
+        static string epoch2string(int epoch)
         {
-            Console.Clear();
-            Console.WriteLine($"Name: {weather.name}");
+            return new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(epoch).ToShortDateString();
         }
 
-        static async Task<WeatherCurrentMessage> GetWeatherAsync(string path)
+        static async Task<WeatherCurrentMessage> GetCurrentWeatherAsync(string path)
         {
             WeatherCurrentMessage weather = null;
             var uri = new Uri(path);
@@ -54,18 +50,37 @@ namespace WeatherApp
             return weather;
         }
 
+        static async Task<WeatherForecastMessage> GetForecastWeatherAsync(string path)
+        {
+            WeatherForecastMessage weather = null;
+            var uri = new Uri(path);
+            HttpResponseMessage response = await http.GetAsync(uri.AbsoluteUri);
+
+            if (response.IsSuccessStatusCode)
+            {
+                weather = await response.Content.ReadAsAsync<WeatherForecastMessage>();
+            }
+
+            return weather;
+        }
+
         static async Task RunAsync()
         {
-            Options opt = RunMenu();
-
-            string url = GetRequestURL(opt);
-            Console.WriteLine($"url: {url}");
+            Options opt  = RunMenu();
+            string url   = GetRequestURL(opt);
 
             try
             {
-
-                WeatherCurrentMessage msg = await GetWeatherAsync(url);
-                ShowWeather(msg);
+                if(opt.type == "weather?") //<- this is filled in at menu
+                {
+                    WeatherCurrentMessage msg = await GetCurrentWeatherAsync(url);
+                    ShowWeather(msg);
+                }
+                else
+                {
+                    WeatherForecastMessage msg = await GetForecastWeatherAsync(url);
+                    ShowWeather(msg);
+                }
             }
             catch (Exception e)
             {
@@ -102,8 +117,9 @@ namespace WeatherApp
             while (menu)
             {
                 Console.Clear();
+                Console.WriteLine("----------------------");
                 Console.WriteLine("Please Enter Zipcode: ");
-                Console.WriteLine("---------------");
+                Console.WriteLine("----------------------");
                 Console.WriteLine();
                 input = Console.ReadLine();
                 if (opt.IsZipCode(input))
@@ -123,13 +139,12 @@ namespace WeatherApp
             while (menu)
             {
                 Console.Clear();
+                Console.WriteLine("---------------");
                 Console.WriteLine("Weather Query: ");
                 Console.WriteLine("---------------");
                 Console.WriteLine();
                 Console.WriteLine("1: Current Weather");
                 Console.WriteLine("2: Weather Forecast");
-                Console.WriteLine("---------------");
-                Console.WriteLine();
                 input = Console.ReadLine();
 
                 switch (input)
@@ -155,14 +170,13 @@ namespace WeatherApp
             while (menu)
             {
                 Console.Clear();
+                Console.WriteLine("---------------");
                 Console.WriteLine("Weather Units: ");
                 Console.WriteLine("---------------");
                 Console.WriteLine();
                 Console.WriteLine("1: Imperial");
                 Console.WriteLine("2: Metric");
                 Console.WriteLine("3: Standard");
-                Console.WriteLine("---------------");
-                Console.WriteLine();
                 input = Console.ReadLine();
 
                 switch (input)
@@ -190,6 +204,20 @@ namespace WeatherApp
             Console.Clear();
 
             return opt;
+        }
+
+        static void ShowWeather(WeatherCurrentMessage weather)
+        {
+            Console.Clear();
+            Console.WriteLine("Current Weather =>");
+            Console.WriteLine($"Name: {weather.name}, Date: {epoch2string(weather.dt)}");
+        }
+
+        static void ShowWeather(WeatherForecastMessage weather)
+        {
+            Console.Clear();
+            Console.WriteLine("Forecast Weather =>");
+            Console.WriteLine($"Name: {weather.city.name}, Date: {epoch2string(weather.list[0].dt)}, Length: {weather.list.Length}");
         }
     }
 }
